@@ -3,13 +3,16 @@ const matchService = require('../services/matchService');
 const redisService = require('../services/redisService');
 
 /**
- * Controller to get today's matches for a specific league
+ * Controller to get matches for a specific league and date
  */
-async function getTodayMatches(req, res) {
+async function getMatches(req, res) {
     const { leagueId } = req.params;
-    console.log(`Request received for leagueId: ${leagueId}`);
-    const today = new Date().toISOString().split('T')[0];
-    const cacheKey = `league_${leagueId}_${today}`;
+    const { date } = req.query; // YYYY-MM-DD
+
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    console.log(`Request received for leagueId: ${leagueId}, date: ${targetDate}`);
+
+    const cacheKey = `league_${leagueId}_${targetDate}`;
 
     // Check Redis Cache
     const cachedData = await redisService.get(cacheKey);
@@ -20,10 +23,10 @@ async function getTodayMatches(req, res) {
 
     try {
         console.log(`Redis Cache miss for ${cacheKey}. Calling API-Football...`);
-        const fixtures = await apiFootballService.getFixturesByLeague(leagueId, today);
+        const fixtures = await apiFootballService.getFixturesByLeague(leagueId, targetDate);
         console.log(`Received ${fixtures.length} fixtures from API`);
 
-        // Persist to database in background (not blocking response for now)
+        // Persist to database in background
         matchService.persistMatches(fixtures).catch(err => console.error('Error persisting matches:', err));
 
         const simplifiedMatches = fixtures.map(f => ({
@@ -45,5 +48,5 @@ async function getTodayMatches(req, res) {
 }
 
 module.exports = {
-    getTodayMatches
+    getMatches
 };

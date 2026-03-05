@@ -13,8 +13,8 @@ app.get('/health', (req, res) => {
     res.json({ status: "ok" });
 });
 
-app.get('/leagues/:leagueId/matches/today', (req, res) => {
-    matchController.getTodayMatches(req, res);
+app.get('/leagues/:leagueId/matches', (req, res) => {
+    matchController.getMatches(req, res);
 });
 
 const statsController = require('./controllers/statsController');
