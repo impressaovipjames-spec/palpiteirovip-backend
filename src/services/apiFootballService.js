@@ -19,11 +19,16 @@ async function apiRequest(endpoint, params) {
             params: params
         });
 
+        console.log(`[API-Football] REQUEST ${endpoint} | Params:`, params);
+
         // Basic error check according to API-Football response structure
         if (response.data.errors && Object.keys(response.data.errors).length > 0) {
-            console.error('API-Football Error:', response.data.errors);
+            console.error('[API-Football] ERROR Response:', JSON.stringify(response.data.errors));
             throw new Error('API request failed');
         }
+
+        const resultsCount = response.data.results || 0;
+        console.log(`[API-Football] SUCCESS | Results: ${resultsCount}`);
 
         return response.data.response;
     } catch (error) {
@@ -40,9 +45,11 @@ async function apiRequest(endpoint, params) {
  * @returns {Promise<object>}
  */
 async function getTeamStatistics(leagueId, season, teamId) {
+    // MODO VALIDAÇÃO (PLANO FREE): Forçar 2024
+    const forcedSeason = 2024;
     const data = await apiRequest('/teams/statistics', {
         league: leagueId,
-        season: season,
+        season: forcedSeason,
         team: teamId
     });
     return data;
@@ -67,10 +74,12 @@ async function getHeadToHead(homeTeamId, awayTeamId) {
  * @returns {Promise<Array>}
  */
 async function getFixturesByLeague(leagueId, date) {
-    const season = new Date().getFullYear();
+    // MODO VALIDAÇÃO (PLANO FREE): Forçar 2024
+    const forcedSeason = 2024;
+    console.log(`[getFixturesByLeague] League: ${leagueId}, Date: ${date}, Forcing Season: ${forcedSeason}`);
     return await apiRequest('/fixtures', {
         league: leagueId,
-        season: season,
+        season: forcedSeason,
         date: date
     });
 }
@@ -82,9 +91,11 @@ async function getFixturesByLeague(leagueId, date) {
  * @returns {Promise<Array>}
  */
 async function getStandings(leagueId, season) {
+    // MODO VALIDAÇÃO (PLANO FREE): Forçar 2024
+    const forcedSeason = 2024;
     return await apiRequest('/standings', {
         league: leagueId,
-        season: season
+        season: forcedSeason
     });
 }
 

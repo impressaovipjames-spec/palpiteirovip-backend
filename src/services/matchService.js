@@ -42,27 +42,34 @@ async function ensureLeagueExists(leagueData) {
 
 /**
  * Persists a list of fixtures to the database.
- * @param {Array} fixtures - Array of fixtures from API-Football
+ * @param {Array} fixtures - Array of fixtures in the standardized format
  */
 async function persistMatches(fixtures) {
     for (const fixtureObj of fixtures) {
-        const { fixture, league, teams } = fixtureObj;
+        const { api_id, league, home_team, away_team, date, status } = fixtureObj;
 
         // Ensure teams and league exist first
         const internalLeagueId = await ensureLeagueExists(league);
-        const internalHomeTeamId = await ensureTeamExists(teams.home);
-        const internalAwayTeamId = await ensureTeamExists(teams.away);
+        const internalHomeTeamId = await ensureTeamExists(home_team);
+        const internalAwayTeamId = await ensureTeamExists(away_team);
 
         // Check if match already exists
-        const matchRes = await db.query('SELECT id FROM matches WHERE api_id = $1', [fixture.id]);
+        const matchRes = await db.query('SELECT id FROM matches WHERE api_id = $1', [api_id]);
 
         if (matchRes.rows.length === 0) {
             await db.query(
                 `INSERT INTO matches (league_id, home_team_id, away_team_id, match_date, status, api_id) 
                  VALUES ($1, $2, $3, $4, $5, $6)`,
-                [internalLeagueId, internalHomeTeamId, internalAwayTeamId, fixture.date, fixture.status.short, fixture.id]
+                [internalLeagueId, internalHomeTeamId, internalAwayTeamId, date, status, api_id]
             );
-            console.log(`Match ${fixture.id} inserted into database.`);
+            console.log(`[PERSISTÊNCIA] JOGO INSERIDO: Match ${api_id} (${home_team.name} vs ${away_team.name})`);
+        } else {
+            // Log update if needed or just skip
+            await db.query(
+                'UPDATE matches SET status = $1, match_date = $2 WHERE api_id = $3',
+                [status, date, api_id]
+            );
+            console.log(`[PERSISTÊNCIA] JOGO ATUALIZADO: Match ${api_id}`);
         }
     }
 }

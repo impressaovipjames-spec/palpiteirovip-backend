@@ -423,64 +423,105 @@ async function calculateMatchProbabilities(matchId) {
 }
 
 /**
- * Retrieves the Highlights of the Day.
- * Criteria: data_quality >= 75 and at least one category >= 70%.
+ * Retrieves the Highlights of the Day — two smart blocks:
+ * 1. highConfidence: "Aposta Segura" — probability >= 85, data_quality >= 80
+ * 2. valueOpportunity: "Zebra Inteligente" — underdog 20-35%, draw >= 30%, data_quality >= 70
  */
 async function getHighlightsOfDay() {
     try {
-        // Query matches merged with checklists
         const query = `
             SELECT 
                 m.api_id as match_id,
+                t1.name as home_team,
+                t2.name as away_team,
+                l.name as league,
                 c.data_quality,
-                c.result_home, c.result_away,
-                c.over15, c.over25,
-                c.btts_yes, c.btts_no,
-                c.corners_over85, c.corners_over95,
-                c.first_scorer_home, c.first_scorer_away,
-                c.first_half_home, c.first_half_away
+                c.result_home,
+                c.result_away,
+                c.result_draw
             FROM match_checklists c
             JOIN matches m ON c.match_id = m.id
-            WHERE c.data_quality >= 75
+            JOIN teams t1 ON m.home_team_id = t1.id
+            JOIN teams t2 ON m.away_team_id = t2.id
+            JOIN leagues l ON m.league_id = l.id
         `;
         const res = await db.query(query);
-        const highlights = [];
 
-        // Evaluate categories for >= 70% threshold
+        let highConfidence = null;
+        let valueOpportunity = null;
+
+        const highConfidenceCandidates = [];
+        const valueCandidates = [];
+
         res.rows.forEach(row => {
-            const potentialHighlights = [
-                { category: 'Vitória Casa', percent: Number(row.result_home) },
-                { category: 'Vitória Visitante', percent: Number(row.result_away) },
-                { category: 'Acima 1.5 Gols', percent: Number(row.over15) },
-                { category: 'Acima 2.5 Gols', percent: Number(row.over25) },
-                { category: 'Ambos Marcam Sim', percent: Number(row.btts_yes) },
-                { category: 'Ambos Marcam Não', percent: Number(row.btts_no) },
-                { category: 'Escanteios Acima 8.5', percent: Number(row.corners_over85) },
-                { category: 'Escanteios Acima 9.5', percent: Number(row.corners_over95) },
-                { category: '1º a Marcar (Casa)', percent: Number(row.first_scorer_home) },
-                { category: '1º a Marcar (Visitante)', percent: Number(row.first_scorer_away) },
-                { category: 'Marcar no 1º Tempo (Casa)', percent: Number(row.first_half_home) },
-                { category: 'Marcar no 1º Tempo (Visitante)', percent: Number(row.first_half_away) }
-            ];
+            const pHome = Number(row.result_home) || 0;
+            const pAway = Number(row.result_away) || 0;
+            const pDraw = Number(row.result_draw) || 0;
+            const dq = Number(row.data_quality) || 0;
 
-            // Filter those >= 70
-            potentialHighlights.filter(h => h.percent >= 70).forEach(h => {
-                highlights.push({
-                    match_id: row.match_id,
-                    destaque_categoria: h.category,
-                    percentual: h.percent,
-                    data_quality: row.data_quality
-                });
-            });
+            // --- BLOCO 1: APOSTA SEGURA ---
+            // criteria: any outcome >= 85% AND data_quality >= 80
+            if (dq >= 80) {
+                const maxProb = Math.max(pHome, pAway);
+                if (maxProb >= 85) {
+                    const prediction = pHome >= pAway ? 'Vitória Casa' : 'Vitória Visitante';
+                    highConfidenceCandidates.push({
+                        matchId: row.match_id,
+                        league: row.league,
+                        homeTeam: row.home_team,
+                        awayTeam: row.away_team,
+                        prediction,
+                        probability: maxProb,
+                        data_quality: dq
+                    });
+                }
+            }
+
+            // --- BLOCO 2: ZEBRA INTELIGENTE ---
+            // criteria: underdog between 20-35%, draw >= 30%, data_quality >= 70
+            if (dq >= 70 && pDraw >= 30) {
+                const underdog = Math.min(pHome, pAway);
+                if (underdog >= 20 && underdog <= 35) {
+                    const underdogTeam = pHome < pAway ? 'Casa' : 'Visitante';
+                    valueCandidates.push({
+                        matchId: row.match_id,
+                        league: row.league,
+                        homeTeam: row.home_team,
+                        awayTeam: row.away_team,
+                        underdogTeam,
+                        underdogProbability: underdog,
+                        drawProbability: pDraw,
+                        data_quality: dq
+                    });
+                }
+            }
         });
 
-        // Sort by highest percentage
-        highlights.sort((a, b) => b.percentual - a.percentual);
+        // Pick best candidates
+        if (highConfidenceCandidates.length > 0) {
+            // Sort: highest probability first, then data_quality
+            highConfidenceCandidates.sort((a, b) =>
+                b.probability - a.probability || b.data_quality - a.data_quality
+            );
+            highConfidence = highConfidenceCandidates[0];
+        }
 
-        return highlights;
+        if (valueCandidates.length > 0) {
+            // Sort: draw probability highest first (best value), then data_quality
+            valueCandidates.sort((a, b) =>
+                b.drawProbability - a.drawProbability || b.data_quality - a.data_quality
+            );
+            valueOpportunity = valueCandidates[0];
+        }
+
+        console.log(`Highlights of Day -> highConfidence: ${highConfidence ? highConfidence.matchId : 'none'}, valueOpportunity: ${valueOpportunity ? valueOpportunity.matchId : 'none'}`);
+
+        return { highConfidence, valueOpportunity };
+
     } catch (error) {
         console.error('Error fetching highlights:', error.message);
-        throw error;
+        // Never block the app — return null blocks gracefully
+        return { highConfidence: null, valueOpportunity: null };
     }
 }
 

@@ -1,19 +1,24 @@
 const scoringService = require('../services/scoringService');
 
 /**
- * Controller to fetch Highlights of the Day
+ * Controller to fetch Highlights of the Day (two blocks: highConfidence + valueOpportunity)
  */
 async function getHighlights(req, res) {
     try {
         console.log('Fetching highlights of the day...');
         const highlights = await scoringService.getHighlightsOfDay();
 
-        // The specification demands returning the array directly
-        res.json(highlights);
+        // Return the structured two-block response directly
+        res.json({
+            data: highlights
+        });
 
     } catch (error) {
         console.error('Error fetching highlights:', error.message);
-        res.status(500).json({ error: 'Failed to fetch highlights', details: error.message });
+        // Graceful fallback — never cause infinite loading
+        res.json({
+            data: { highConfidence: null, valueOpportunity: null }
+        });
     }
 }
 

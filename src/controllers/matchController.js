@@ -1,4 +1,4 @@
-const apiFootballService = require('../services/apiFootballService');
+const dataProvider = require('../providers/dataProvider');
 const matchService = require('../services/matchService');
 const redisService = require('../services/redisService');
 
@@ -9,36 +9,61 @@ async function getMatches(req, res) {
     const { leagueId } = req.params;
     const { date } = req.query; // YYYY-MM-DD
 
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    console.log(`Request received for leagueId: ${leagueId}, date: ${targetDate}`);
+    // CORREÇÃO TIMEZONE BRASIL (America/Sao_Paulo)
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('af-ZA', { // Format YYYY-MM-DD
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    const brDate = formatter.format(now).replace(/\//g, '-');
+
+    let targetDate = date || brDate;
+
+    // MODO VALIDAÇÃO (PLANO FREE): Como a API bloqueia 2026, vamos simular que estamos em 2024 
+    // para que os jogos apareçam no app.
+    if (targetDate.startsWith('2026')) {
+        targetDate = targetDate.replace('2026', '2024');
+        console.log(`[AUDITORIA] Shift Date: 2026 -> 2024 para compatibilidade com Plano Free.`);
+    }
+
+    console.log(`[matchController] Request: leagueId=${leagueId}, targetDate=${targetDate} (Today BR: ${brDate})`);
 
     const cacheKey = `league_${leagueId}_${targetDate}`;
 
-    // Check Redis Cache
-    const cachedData = await redisService.get(cacheKey);
-    if (cachedData) {
-        console.log(`Redis Cache hit for ${cacheKey}`);
-        return res.json({ data: cachedData });
+    // TEMP: Desabilitar cache para auditoria de dados reais
+    const DISABLE_CACHE = true;
+
+    if (!DISABLE_CACHE) {
+        const cachedData = await redisService.get(cacheKey);
+        if (cachedData) {
+            console.log(`Redis Cache hit for ${cacheKey}`);
+            return res.json({ data: cachedData });
+        }
+    } else {
+        console.log(`[AUDITORIA] Cache desabilitado para ${cacheKey}`);
     }
 
     try {
-        console.log(`Redis Cache miss for ${cacheKey}. Calling API-Football...`);
-        const fixtures = await apiFootballService.getFixturesByLeague(leagueId, targetDate);
-        console.log(`Received ${fixtures.length} fixtures from API`);
+        console.log(`[AUDITORIA] Chamando DataProvider para ${targetDate}...`);
+        const standardizedFixtures = await dataProvider.getFixtures(leagueId, targetDate);
+        console.log(`[AUDITORIA] Recebidos ${standardizedFixtures ? standardizedFixtures.length : 0} jogos do provedor.`);
 
         // Persist to database in background
-        matchService.persistMatches(fixtures).catch(err => console.error('Error persisting matches:', err));
+        matchService.persistMatches(standardizedFixtures).catch(err => console.error('Error persisting matches:', err));
 
-        const simplifiedMatches = fixtures.map(f => ({
-            api_id: f.fixture.id,
-            home_team: f.teams.home.name,
-            away_team: f.teams.away.name,
-            date: f.fixture.date,
-            status: f.fixture.status.short
+        const simplifiedMatches = (standardizedFixtures || []).map(f => ({
+            api_id: f.api_id,
+            home_team: f.home_team.name,
+            away_team: f.away_team.name,
+            date: f.date,
+            status: f.status
         }));
 
-        // Update Redis Cache (TTL of 1800s / 30 mins)
-        await redisService.set(cacheKey, simplifiedMatches, 1800);
+        if (!DISABLE_CACHE) {
+            await redisService.set(cacheKey, simplifiedMatches, 1800);
+        }
 
         res.json({ data: simplifiedMatches });
     } catch (error) {
