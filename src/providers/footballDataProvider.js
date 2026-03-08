@@ -54,8 +54,8 @@ async function getFixtures(leagueId, date) {
             endDate.setDate(endDate.getDate() + 7);
 
             matches = allMatches.filter(m => {
-                const matchDate = new Date(m.utcDate);
-                return matchDate >= startDate && matchDate <= endDate;
+                const matchDate = new Date(m.utcDate).getTime();
+                return matchDate >= startDate.getTime() && matchDate <= endDate.getTime();
             });
 
             // Limitar a no máximo 15 jogos no fallback para não sobrecarregar
