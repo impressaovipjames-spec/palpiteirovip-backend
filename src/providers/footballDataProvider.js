@@ -27,7 +27,10 @@ async function getFixtures(leagueId, date) {
 
     console.log(`[footballDataProvider] Buscando jogos para ${competitionCode} em ${date}`);
 
-    const season = date.split('-')[0];
+    // Temporada de futebol: se estamos antes de agosto, a temporada começou no ano anterior
+    const [year, month] = date.split('-').map(Number);
+    const season = month < 8 ? year - 1 : year;
+    console.log(`[footballDataProvider] Season calculada: ${season} (data: ${date})`);
 
     try {
         const response = await axios.get(`${BASE_URL}/competitions/${competitionCode}/matches`, {

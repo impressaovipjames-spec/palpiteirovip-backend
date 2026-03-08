@@ -21,13 +21,6 @@ async function getMatches(req, res) {
 
     let targetDate = date || brDate;
 
-    // MODO VALIDAÇÃO (PLANO FREE): Como a API bloqueia 2026, vamos simular que estamos em 2024 
-    // para que os jogos apareçam no app.
-    if (targetDate.startsWith('2026')) {
-        targetDate = targetDate.replace('2026', '2024');
-        console.log(`[AUDITORIA] Shift Date: 2026 -> 2024 para compatibilidade com Plano Free.`);
-    }
-
     console.log(`[matchController] Request: leagueId=${leagueId}, targetDate=${targetDate} (Today BR: ${brDate})`);
 
     const cacheKey = `league_${leagueId}_${targetDate}`;
