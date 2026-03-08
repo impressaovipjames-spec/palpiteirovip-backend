@@ -9,6 +9,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/debug', (req, res) => {
+    res.json({
+        now: new Date().toISOString(),
+        has_api_key: !!process.env.FOOTBALL_DATA_API_KEY,
+        api_key_prefix: process.env.FOOTBALL_DATA_API_KEY ? process.env.FOOTBALL_DATA_API_KEY.substring(0, 4) : 'NONE',
+        node_version: process.version,
+        env: process.env.NODE_ENV
+    });
+});
+
 app.get('/health', (req, res) => {
     res.json({ status: "ok" });
 });
