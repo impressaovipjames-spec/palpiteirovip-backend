@@ -39,9 +39,31 @@ async function getFixtures(leagueId, date) {
         });
 
         const allMatches = response.data.matches || [];
-        const matches = allMatches.filter(m => m.utcDate.startsWith(date));
-        console.log(`[footballDataProvider] Filtro local: ${matches.length} jogos encontrados para a data ${date}.`);
-        console.log(`[footballDataProvider] Encontrados ${matches.length} jogos.`);
+
+        // Tentar filtro exato primeiro
+        let matches = allMatches.filter(m => m.utcDate.startsWith(date));
+
+        // FALLBACK: Se não houver jogos exatamente hoje, vamos pegar os jogos 
+        // em um intervalo de -3 a +7 dias para garantir que o app mostre algo.
+        if (matches.length === 0) {
+            console.log(`[footballDataProvider] Sem jogos para ${date}. Ativando FALLBACK window...`);
+            const targetDateObj = new Date(date);
+            const startDate = new Date(targetDateObj);
+            startDate.setDate(startDate.getDate() - 3);
+            const endDate = new Date(targetDateObj);
+            endDate.setDate(endDate.getDate() + 7);
+
+            matches = allMatches.filter(m => {
+                const matchDate = new Date(m.utcDate);
+                return matchDate >= startDate && matchDate <= endDate;
+            });
+
+            // Limitar a no máximo 15 jogos no fallback para não sobrecarregar
+            matches = matches.slice(0, 15);
+            console.log(`[footballDataProvider] Fallback: Encontrados ${matches.length} jogos próximos.`);
+        } else {
+            console.log(`[footballDataProvider] Filtro exato: ${matches.length} jogos encontrados.`);
+        }
 
         return matches.map(m => ({
             external_id: m.id,
