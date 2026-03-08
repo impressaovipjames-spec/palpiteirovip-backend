@@ -40,30 +40,24 @@ async function getFixtures(leagueId, date) {
 
         const allMatches = response.data.matches || [];
 
-        // Tentar filtro exato primeiro
-        let matches = allMatches.filter(m => m.utcDate.startsWith(date));
+        const now = new Date();
 
-        // FALLBACK: Se não houver jogos exatamente hoje, vamos pegar os jogos 
-        // em um intervalo de -3 a +7 dias para garantir que o app mostre algo.
+        // 1. Filtrar jogos futuros ou em andamento (utcDate >= agora)
+        let matches = allMatches
+            .filter(m => new Date(m.utcDate) >= now)
+            .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
+            .slice(0, 10);
+
+        // 2. FALLBACK: Se não houver jogos futuros, pegar os últimos 10 finalizados
         if (matches.length === 0) {
-            console.log(`[footballDataProvider] Sem jogos para ${date}. Ativando FALLBACK window...`);
-            const targetDateObj = new Date(date);
-            const startDate = new Date(targetDateObj);
-            startDate.setDate(startDate.getDate() - 3);
-            const endDate = new Date(targetDateObj);
-            endDate.setDate(endDate.getDate() + 7);
-
-            matches = allMatches.filter(m => {
-                const matchDate = new Date(m.utcDate).getTime();
-                return matchDate >= startDate.getTime() && matchDate <= endDate.getTime();
-            });
-
-            // Limitar a no máximo 15 jogos no fallback para não sobrecarregar
-            matches = matches.slice(0, 15);
-            console.log(`[footballDataProvider] Fallback: Encontrados ${matches.length} jogos próximos.`);
-        } else {
-            console.log(`[footballDataProvider] Filtro exato: ${matches.length} jogos encontrados.`);
+            console.log(`[footballDataProvider] Sem jogos futuros. Ativando fallback para os últimos 10 finalizados.`);
+            matches = allMatches
+                .filter(m => m.status === 'FINISHED' || m.status === 'AWARDED')
+                .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate)) // Decrescente (mais recentes primeiro)
+                .slice(0, 10);
         }
+
+        console.log(`[footballDataProvider] Retornando ${matches.length} jogos (Lógica Dinâmica Sprint 32).`);
 
         return matches.map(m => ({
             external_id: m.id,

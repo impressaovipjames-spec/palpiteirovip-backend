@@ -21,9 +21,9 @@ async function getMatches(req, res) {
 
     let targetDate = date || brDate;
 
-    console.log(`[matchController] Request: leagueId=${leagueId}, targetDate=${targetDate} (Today BR: ${brDate})`);
+    console.log(`[matchController] Request: leagueId=${leagueId}, targetDate=${targetDate} (Lógica Dinâmica Sprint 32 ATIVA)`);
 
-    const cacheKey = `league_${leagueId}_${targetDate}`;
+    const cacheKey = `league_${leagueId}_dynamic_next`;
 
     // TEMP: Desabilitar cache para auditoria de dados reais
     const DISABLE_CACHE = true;
@@ -35,11 +35,11 @@ async function getMatches(req, res) {
             return res.json({ data: cachedData });
         }
     } else {
-        console.log(`[AUDITORIA] Cache desabilitado para ${cacheKey}`);
+        console.log(`[AUDITORIA] Cache desabilitado para ${cacheKey} (Sprint 32)`);
     }
 
     try {
-        console.log(`[AUDITORIA] Chamando DataProvider para ${targetDate}...`);
+        console.log(`[AUDITORIA] Chamando DataProvider com Lógica Dinâmica...`);
         const standardizedFixtures = await dataProvider.getFixtures(leagueId, targetDate);
         console.log(`[AUDITORIA] Recebidos ${standardizedFixtures ? standardizedFixtures.length : 0} jogos do provedor.`);
 
